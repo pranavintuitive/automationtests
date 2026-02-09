@@ -1,0 +1,64 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+.env
+.env.*
+
+# =========================
+# OpenAI / secrets
+# =========================
+.env
+.env.local
+
+# =========================
+# Pytest / test outputs
+# =========================
+.pytest_cache/
+htmlcov/
+coverage.xml
+report.html
+*.log
+
+# =========================
+# Playwright
+# =========================
+playwright-report/
+test-results/
+.trace/
+videos/
+screenshots/
+
+# =========================
+# Build / dist
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# =========================
+# Editors / IDEs
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# GitHub Actions artifacts
+# =========================
+artifacts/

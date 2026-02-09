@@ -1,0 +1,32 @@
+name: Automation Tests
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  automation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r automation/requirements.txt
+          playwright install --with-deps
+
+      - name: Run tests
+        run: |
+          pytest automation --html=report.html --self-contained-html || true
+
+      - name: Publish report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: automation-report
+          path: report.html
