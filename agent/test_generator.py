@@ -3,18 +3,15 @@ import json
 import textwrap
 import re
 import itertools
-
+from agent.data_factory import deterministic_value
 
 API_TEST_FILE = Path("automation/api/test_generated_api.py")
 
-# global counter for test case IDs
 TC_COUNTER = itertools.count(1)
-
 
 # ----------------------------
 # Helpers
 # ----------------------------
-
 
 def next_tc_id() -> str:
     return f"TC_API_{next(TC_COUNTER):03d}"
@@ -30,7 +27,8 @@ def resolve_path_params(path: str, parameters: list) -> str:
 
 def safe_test_name(value: str) -> str:
     value = value.strip("/")
-    value = re.sub(r"[{}\-\/]+", "_", value)
+    value = re.sub(r"[{}\\/]+", "_", value)
+    value = re.sub(r"-+", "_", value)
     value = re.sub(r"_+", "_", value)
     return value.lower().strip("_")
 
@@ -48,14 +46,10 @@ def is_login_endpoint(path: str) -> bool:
 
 def swagger_description(endpoint: dict) -> str:
     return (
-        (
-            endpoint.get("summary")
-            or endpoint.get("description")
-            or "Validate API behavior"
-        )
-        .strip()
-        .replace("\n", " ")
-    )
+        endpoint.get("summary")
+        or endpoint.get("description")
+        or "Validate API behavior"
+    ).strip().replace("\n", " ")
 
 
 def bdd_test_name(method: str, path: str) -> str:
@@ -70,10 +64,17 @@ def bdd_test_name(method: str, path: str) -> str:
     return f"{action}_{clean}"
 
 
+def get_response_schema(endpoint: dict):
+    responses = endpoint.get("responses", {})
+    success = responses.get("200") or responses.get("201")
+    if not success:
+        return None
+    return success.get("content", {}).get("application/json", {}).get("schema")
+
+
 # ----------------------------
 # Main generator
 # ----------------------------
-
 
 def generate_tests(base_url: str, endpoints: list):
     API_TEST_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -83,19 +84,14 @@ import pytest
 import requests
 import logging
 import json
+from automation.utils.schema_assertions import assert_schema
 
 BASE_URL = "{base_url}"
 
-# ----------------------------
-# Logging configuration
-# ----------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
-    handlers=[
-        logging.FileHandler("api_test.log"),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler("api_test.log"), logging.StreamHandler()]
 )
 
 def log_request_response(method, url, payload, response):
@@ -108,13 +104,10 @@ def safe_request(method, url, **kwargs):
     try:
         return requests.request(method, url, timeout=15, **kwargs)
     except Exception as e:
-        logging.exception(f"Request failed: {{method}} {{url}}")
+        logging.exception("Request failed")
         pytest.fail(str(e))
 
 
-# ----------------------------
-# AUTH FIXTURE
-# ----------------------------
 @pytest.fixture(scope="session")
 def auth_headers():
     response = requests.post(
@@ -131,105 +124,89 @@ def auth_headers():
     response.raise_for_status()
     token = response.json().get("access_token")
     if not token:
-        pytest.fail("Auth token missing in login response")
-
-    return {{
-        "Authorization": f"Bearer {{token}}"
-    }}
-
-
+        pytest.fail("Auth token missing")
+    return {{"Authorization": f"Bearer {{token}}"}}
 """
 
     for ep in endpoints:
         method = ep["method"].upper()
         path = resolve_path_params(ep["path"], ep.get("parameters", []))
 
-        # skip login endpoint (tested via auth fixture)
         if is_login_endpoint(path):
             continue
 
+        tc_id = next_tc_id()
+        test_name = bdd_test_name(method, path)
+        description = swagger_description(ep)
         url_expr = f'f"{{BASE_URL}}{path}"'
         auth_needed = requires_auth(ep)
 
-        test_name = bdd_test_name(method, path)
-        tc_id = next_tc_id()
-        description = swagger_description(ep)
+        payload, payload_type = generate_positive_payload(ep, tc_id)
+        neg_payload = generate_negative_payload(ep, tc_id)
 
-        payload, payload_type = generate_positive_payload(ep)
-        payload_code = json.dumps(payload, indent=4) if payload else "None"
+        response_schema = get_response_schema(ep)
+        response_schema_code = json.dumps(response_schema, indent=4) if response_schema else "None"
 
-        headers_line = "headers=auth_headers" if auth_needed else ""
+        headers = "headers=auth_headers" if auth_needed else ""
 
-        # ----------------------------
-        # POSITIVE BDD TEST
-        # ----------------------------
-        positive_test = f"""
+        code += f"\nRESPONSE_SCHEMA = {response_schema_code}\n"
+
+        # ---------------- POSITIVE (CONTRACT) ----------------
+        code += textwrap.dedent(f"""
+@pytest.mark.contract
 def test_{test_name}_positive({ "auth_headers" if auth_needed else "" }):
-    \"""
+    \"\"\"
     Test Case ID: {tc_id}
     GIVEN {description}
-    WHEN the client sends a {method} request to {path}
-    THEN the API should return a successful response
-    \"""
+    WHEN client sends {method} {path}
+    THEN response should match API contract
+    \"\"\"
 
-    # GIVEN
     url = {url_expr}
-    payload = {payload_code}
+    payload = {json.dumps(payload, indent=4) if payload else "None"}
 
-    # WHEN
-    if payload:
-        if "{payload_type}" == "form":
-            response = safe_request("{method}", url, data=payload, {headers_line})
-        else:
-            response = safe_request("{method}", url, json=payload, {headers_line})
-    else:
-        response = safe_request("{method}", url, {headers_line})
+    response = safe_request(
+        "{method}",
+        url,
+        {"data" if payload_type == "form" else "json"}=payload if payload else None,
+        {headers}
+    )
 
-    # THEN
     log_request_response("{method}", url, payload, response)
 
     if response.status_code == 404:
-        pytest.xfail("Fake path parameter used")
+        pytest.xfail("Path parameter placeholder")
 
     assert response.status_code == 200
-"""
 
-        # ----------------------------
-        # NEGATIVE BDD TEST
-        # ----------------------------
-        neg_payload = generate_negative_payload(ep)
-        neg_payload_code = json.dumps(neg_payload, indent=4) if neg_payload else "None"
+    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
+        assert_schema(response.json(), RESPONSE_SCHEMA)
+""")
 
-        negative_test = f"""
+        # ---------------- NEGATIVE ----------------
+        code += textwrap.dedent(f"""
 def test_{test_name}_negative({ "auth_headers" if auth_needed else "" }):
-    \"""
+    \"\"\"
     Test Case ID: {tc_id}_NEG
-    GIVEN an invalid request for {description}
-    WHEN the client sends a malformed or unauthorized {method} request
-    THEN the API should reject the request
-    \"""
+    GIVEN invalid input
+    WHEN client sends {method}
+    THEN API should reject request
+    \"\"\"
 
-    # GIVEN
     url = {url_expr}
-    payload = {neg_payload_code}
+    payload = {json.dumps(neg_payload, indent=4) if neg_payload else "None"}
 
-    # WHEN
-    if payload:
-        response = safe_request("{method}", url, json=payload, {headers_line})
-    else:
-        response = safe_request("{method}", url, {headers_line})
+    response = safe_request(
+        "{method}",
+        url,
+        json=payload if payload else None,
+        {headers}
+    )
 
-    # THEN
     log_request_response("{method}", url, payload, response)
 
-    if response.status_code == 200:
-        pytest.xfail("Endpoint allows request by design")
-
-    assert response.status_code in (400, 401, 403, 404, 422)
-"""
-
-        code += textwrap.dedent(positive_test)
-        code += textwrap.dedent(negative_test)
+    assert response.status_code in (400,401,403,404,422)
+""")
 
     API_TEST_FILE.write_text(code.strip(), encoding="utf-8")
     print(f"[GENERATED] {API_TEST_FILE}")
@@ -239,8 +216,7 @@ def test_{test_name}_negative({ "auth_headers" if auth_needed else "" }):
 # Payload generators
 # ----------------------------
 
-
-def generate_positive_payload(endpoint: dict):
+def generate_positive_payload(endpoint: dict, tc_id: str):
     body = endpoint.get("requestBody")
     if not body:
         return None, None
@@ -257,31 +233,18 @@ def generate_positive_payload(endpoint: dict):
         return None, None
 
     properties = schema.get("properties", {})
-    if not properties:
-        return None, None
-
     payload = {
-        key: example_value(value.get("type")) for key, value in properties.items()
+        field: deterministic_value(tc_id, field, spec.get("type"))
+        for field, spec in properties.items()
     }
 
     return payload, payload_type
 
 
-def generate_negative_payload(endpoint: dict):
-    payload, _ = generate_positive_payload(endpoint)
+def generate_negative_payload(endpoint: dict, tc_id: str):
+    payload, _ = generate_positive_payload(endpoint, tc_id)
     if not payload:
         return None
-
     payload = payload.copy()
     payload.pop(next(iter(payload)))
     return payload
-
-
-def example_value(type_name: str):
-    if type_name == "string":
-        return "invalid"
-    if type_name == "integer":
-        return -1
-    if type_name == "boolean":
-        return False
-    return None
