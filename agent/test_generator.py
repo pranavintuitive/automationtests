@@ -376,6 +376,6 @@ def replace_path_params_with_swagger(path: str, method: str, swagger_spec: dict,
         )
 
         # Build runtime-safe expression
-        return '{' + f'EXECUTION_CONTEXT.get("{param_name}") or "{fallback}"' + '}'
+        return '{' + f"EXECUTION_CONTEXT.get('{param_name}') or '{fallback}'" + '}'
 
     return re.sub(r"{([^}]+)}", replacer, path)
