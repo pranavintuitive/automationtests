@@ -234,7 +234,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_admi
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_6343'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     payload = None
     query = None
 
@@ -272,7 +272,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_user
     Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_6343'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
 
     response = safe_request("POST", url, headers=user_headers)
 
@@ -289,7 +289,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_without
     Verify unauthenticated access is rejected
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_6343'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -304,7 +304,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_contrac
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_6343'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -322,7 +322,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_admin
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_3424'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     payload = None
     query = None
 
@@ -360,7 +360,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_user_
     Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_3424'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
 
     response = safe_request("POST", url, headers=user_headers)
 
@@ -377,7 +377,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_without_
     Verify unauthenticated access is rejected
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_3424'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -392,7 +392,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_contract
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'job_id_3424'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -410,7 +410,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_admin(
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_4547'}/reset"
     payload = None
     query = None
 
@@ -448,7 +448,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_user_f
     Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_4547'}/reset"
 
     response = safe_request("POST", url, headers=user_headers)
 
@@ -465,7 +465,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_without_a
     Verify unauthenticated access is rejected
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_4547'}/reset"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -480,7 +480,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_contract_
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_4547'}/reset"
     response = safe_request("POST", url)
 
     log_request_response("POST", url, response)
@@ -679,7 +679,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_as_admin(admin_headers
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9703'}/status"
     payload = None
     query = None
 
@@ -718,7 +718,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_as_user(user_headers):
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9703'}/status"
     payload = None
     query = None
 
@@ -754,7 +754,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_contract_stability():
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9703'}/status"
     response = safe_request("GET", url)
 
     log_request_response("GET", url, response)
@@ -772,7 +772,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_admin(admin_hea
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9757'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     payload = None
     query = None
 
@@ -811,7 +811,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_user(user_heade
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9757'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     payload = None
     query = None
 
@@ -847,7 +847,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_contract_stability
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9757'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     response = safe_request("GET", url)
 
     log_request_response("GET", url, response)
@@ -958,7 +958,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_admin(admin_hea
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9568'}"
     payload = None
     query = None
 
@@ -997,7 +997,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_user(user_heade
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9568'}"
     payload = None
     query = None
 
@@ -1033,7 +1033,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_contract_stability
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'job_id_9568'}"
     response = safe_request("GET", url)
 
     log_request_response("GET", url, response)
@@ -1051,7 +1051,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_as_admin(admin_headers
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'job_id_5148'}"
     payload = None
     query = None
 
@@ -1090,7 +1090,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_as_user(user_headers):
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'job_id_5148'}"
     payload = None
     query = None
 
@@ -1126,7 +1126,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_contract_stability():
     Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'job_id_5148'}"
     response = safe_request("GET", url)
 
     log_request_response("GET", url, response)
