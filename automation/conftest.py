@@ -7,6 +7,24 @@ BASE_URL = os.getenv("BASE_URL")
 if not BASE_URL:
     raise RuntimeError("BASE_URL environment variable is not configured")
 
+@pytest.fixture(scope="session")
+def admin_headers():
+    username = os.getenv("ADMIN_USERNAME")
+    password = os.getenv("ADMIN_PASSWORD")
+    if not username or not password:
+        pytest.skip("Admin credentials not configured")
+    token = authenticate(username, password)
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="session")
+def user_headers():
+    username = os.getenv("USER_USERNAME")
+    password = os.getenv("USER_PASSWORD")
+    if not username or not password:
+        pytest.skip("User credentials not configured")
+    token = authenticate(username, password)
+    return {"Authorization": f"Bearer {token}"}
 
 def authenticate(username: str, password: str) -> str:
     login_url = f"{BASE_URL}/api/v1/auth/auth/login"
