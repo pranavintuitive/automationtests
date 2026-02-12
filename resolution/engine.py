@@ -40,6 +40,7 @@ class TestDataResolutionEngine:
             role_context=request.role_context,
             execution_context=request.execution_context,
             deterministic_seed=request.deterministic_seed,
+            request_content_type= request.request_content_type,
         )
 
         # Pipeline
@@ -50,7 +51,7 @@ class TestDataResolutionEngine:
         context = self.field_resolver.resolve(context)
         context = self.rbac_injector.inject(context)
         context = self.validator.validate(context)
-
+        print(f"request_content_type: {context.request_content_type}")
         return ResolvedExecutionRequest(
             url=context.endpoint,
             http_method=context.http_method,
@@ -58,6 +59,7 @@ class TestDataResolutionEngine:
             query_params=context.resolved_query_params,
             headers=context.resolved_headers,
             body=context.resolved_body,
+            request_content_type = context.request_content_type,
             metadata={
                 "role": context.role_context.get("role"),
                 "intent": context.intent_metadata,

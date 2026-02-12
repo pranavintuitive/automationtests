@@ -1,5 +1,5 @@
 # resolution/field_resolver.py
-
+import os
 from typing import Any, Dict
 from .context import StepResolutionContext
 from agent.data_factory import deterministic_value
@@ -19,7 +19,7 @@ class FieldResolver:
 
         for field_name, schema in properties.items():
             strategy = context.strategy_map.get(field_name, "DEFAULT")
-
+            
             if strategy == "INTENT_OVERRIDE":
                 resolved_body[field_name] = context.intent_metadata.get(field_name)
 

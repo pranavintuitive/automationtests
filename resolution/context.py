@@ -12,7 +12,7 @@ class StepResolutionContext:
 
     endpoint: str
     http_method: str
-
+   
     swagger_spec: Dict[str, Any]
 
     intent_metadata: Dict[str, Any]
@@ -21,10 +21,11 @@ class StepResolutionContext:
     execution_context: Dict[str, Any]
 
     deterministic_seed: Optional[int]
-
+    
+    request_content_type: Optional[str]
     # Populated during pipeline
     request_schema: Dict[str, Any] = field(default_factory=dict)
-    required_fields: Dict[str, Any] = field(default_factory=dict)
+    required_fields: list = field(default_factory=list)
     path_params_schema: Dict[str, Any] = field(default_factory=dict)
     query_params_schema: Dict[str, Any] = field(default_factory=dict)
 
@@ -35,3 +36,4 @@ class StepResolutionContext:
     resolved_headers: Dict[str, Any] = field(default_factory=dict)
     resolved_path_params: Dict[str, Any] = field(default_factory=dict)
     resolved_query_params: Dict[str, Any] = field(default_factory=dict)
+    

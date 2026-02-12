@@ -2,45 +2,19 @@ import os
 import pytest
 import requests
 
-
 BASE_URL = os.getenv("BASE_URL")
-if not BASE_URL:
-    raise RuntimeError("BASE_URL environment variable is not configured")
 
-@pytest.fixture(scope="session")
-def admin_headers():
-    username = os.getenv("ADMIN_USERNAME")
-    password = os.getenv("ADMIN_PASSWORD")
-    if not username or not password:
-        pytest.skip("Admin credentials not configured")
-    token = authenticate(username, password)
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture(scope="session")
-def user_headers():
-    username = os.getenv("USER_USERNAME")
-    password = os.getenv("USER_PASSWORD")
-    if not username or not password:
-        pytest.skip("User credentials not configured")
-    token = authenticate(username, password)
-    return {"Authorization": f"Bearer {token}"}
-
-def authenticate(username: str, password: str) -> str:
-    login_url = f"{BASE_URL}/api/v1/auth/auth/login"
-
-    form_data = {
-        "grant_type": "password",
-        "username": username,
-        "password": password,
-        "scope": "",
-        "client_id": "string",
-        "client_secret": "",
-    }
-
+def login(username: str, password: str) -> str:
     response = requests.post(
-        login_url,
-        data=form_data,
+        f"{BASE_URL}/api/v1/auth/auth/login",
+        data={
+            "grant_type": os.getenv("GRANT_TYPE", "password"),
+            "username": username,
+            "password": password,
+            "scope": os.getenv("SCOPE", ""),
+            "client_id": os.getenv("CLIENT_ID"),
+            "client_secret": os.getenv("CLIENT_SECRET"),
+        },
         headers={
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
@@ -49,9 +23,22 @@ def authenticate(username: str, password: str) -> str:
     )
 
     response.raise_for_status()
+    return response.json()["access_token"]
 
-    token = response.json().get("access_token")
-    if not token:
-        raise RuntimeError("Authentication failed: access_token missing")
 
-    return token
+@pytest.fixture(scope="session")
+def admin_headers():
+    token = login(
+        os.getenv("ADMIN_USERNAME"),
+        os.getenv("ADMIN_PASSWORD"),
+    )
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="session")
+def user_headers():
+    token = login(
+        os.getenv("USER_USERNAME"),
+        os.getenv("USER_PASSWORD"),
+    )
+    return {"Authorization": f"Bearer {token}"}

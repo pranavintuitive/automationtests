@@ -16,7 +16,19 @@ class SchemaAnalyzer:
 
         request_body = method_spec.get("requestBody", {})
         content = request_body.get("content", {})
-        json_schema = content.get("application/json", {}).get("schema", {})
+
+        if "application/json" in content:
+            json_schema = content["application/json"].get("schema", {})
+            context.request_content_type = "application/json"
+
+        elif "application/x-www-form-urlencoded" in content:
+            json_schema = content["application/x-www-form-urlencoded"].get("schema", {})
+            
+            context.request_content_type = "application/x-www-form-urlencoded"
+
+        else:
+            json_schema = {}
+            context.request_content_type = None
 
         # Resolve $ref if present
         if "$ref" in json_schema:
@@ -25,7 +37,7 @@ class SchemaAnalyzer:
 
         context.request_schema = self._resolve_nested_refs(json_schema, context.swagger_spec)
         context.required_fields = json_schema.get("required", [])
-
+       
         parameters = method_spec.get("parameters", [])
 
         for param in parameters:

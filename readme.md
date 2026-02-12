@@ -13,7 +13,7 @@ Automation Test Agent is an intelligent API automation framework that:
 - Builds a structured intent model
 - Generates deterministic, schema-compliant test payloads
 - Produces production-ready pytest test suites
-- Generates CI pipelines automatically
+- Generates CI/CD pipelines automatically
 
 This is not a simple test generator.
 

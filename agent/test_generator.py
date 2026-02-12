@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import textwrap
 import re
@@ -6,8 +7,7 @@ import json
 from agent.data_factory import deterministic_value
 from resolution.engine import TestDataResolutionEngine
 from resolution.contracts import TestStepResolutionRequest
-
-
+import uuid
 
 API_TEST_FILE = Path("automation/api/test_generated_api.py")
 
@@ -50,6 +50,7 @@ def build_payload_from_schema(schema: dict, tc_id: str, parent_field: str = ""):
     if not schema:
         return None
 
+    print(f'schema: {schema}')
     schema_type = schema.get("type")
 
     if schema_type == "object":
@@ -99,7 +100,15 @@ def resolve_with_engine(ep: dict, tc_id: str, swagger_spec_from_Parent: dict):
         role_context = {
             "role": "system",
             "token": None,
-            "restricted_fields": []
+            "restricted_fields": [],
+            "credentials": {
+            "username": os.getenv("ADMIN_USERNAME"),
+            "password": os.getenv("ADMIN_PASSWORD"),
+            "client_id": os.getenv("CLIENT_ID"),
+            "client_secret": os.getenv("CLIENT_SECRET"),
+            "grant_type": os.getenv("GRANT_TYPE"),
+            "scope": os.getenv("SCOPE", "")
+            }
         }
 
         resolution_request = TestStepResolutionRequest(
@@ -114,10 +123,14 @@ def resolve_with_engine(ep: dict, tc_id: str, swagger_spec_from_Parent: dict):
 
         resolved = engine.resolve(resolution_request)
 
-        return resolved.body, resolved.query_params
-
-    except Exception:
+        return (
+                resolved.body,
+                resolved.query_params,
+                resolved.request_content_type,
+                )
+    except Exception as exception:
         # Safe fallback to existing behavior
+        print(f"Error resolving test data: {exception}")
         payload = generate_payload_from_intent(ep, tc_id)
         query = generate_query_params_from_intent(ep, tc_id)
         return payload, query
@@ -131,15 +144,13 @@ def generate_tests(base_url: str, intent_model: list, swagger_spec: dict):
 
     API_TEST_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-    code = f"""
-import pytest
+    header_block = f"""import pytest
 import requests
 import logging
 from resolution.lifecycle_engine import LifecycleChainingEngine
 from resolution.execution_context import ExecutionContext
 
 BASE_URL = "{base_url}"
-
 EXECUTION_CONTEXT = ExecutionContext()
 
 logging.basicConfig(
@@ -159,22 +170,13 @@ def safe_request(method, url, **kwargs):
     except Exception as e:
         logging.exception("Request failed")
         pytest.fail(str(e))
+
 """
 
+    code = header_block
 
-    # ----------------------------
-    # Generate tests per endpoint
-    # ----------------------------
-    creation_endpoints = [
-    ep for ep in intent_model
-    if ep.get("classification") == "create"
-    ]
-
-    non_creation_endpoints = [
-        ep for ep in intent_model
-        if ep.get("classification") != "create"
-    ]
-
+    creation_endpoints = [ep for ep in intent_model if ep.get("classification") == "create"]
+    non_creation_endpoints = [ep for ep in intent_model if ep.get("classification") != "create"]
     ordered_endpoints = creation_endpoints + non_creation_endpoints
 
     for ep in ordered_endpoints:
@@ -182,14 +184,13 @@ def safe_request(method, url, **kwargs):
         method = ep["method"].upper()
         raw_path = ep["endpoint"]
         tc_id_base = next_tc_id()
-        static_path = raw_path
-        # Replace path params with deterministic placeholder
-        runtime_path  = replace_path_params_with_swagger(
-                                                raw_path,
-                                                method,
-                                                swagger_spec,
-                                                tc_id_base,
-                                                )
+
+        runtime_path = replace_path_params_with_swagger(
+            raw_path,
+            method,
+            swagger_spec,
+            tc_id_base,
+        )
 
         classification = ep.get("classification", "unknown")
         risk = ep.get("risk_level", "medium")
@@ -197,20 +198,21 @@ def safe_request(method, url, **kwargs):
         role_access = roles_info.get("role_access", {})
         requires_auth = roles_info.get("requires_auth", False)
 
-        test_base_name = bdd_test_name(method, static_path)
+        test_base_name = bdd_test_name(method, raw_path)
         url_expr = f'f"{{BASE_URL}}{runtime_path}"'
 
-        # Generate deterministic payload + query
-       
-        payload, query_params = resolve_with_engine(ep, tc_id_base, swagger_spec)
+        payload, query_params, content_type = resolve_with_engine(
+            ep, tc_id_base, swagger_spec
+        )
 
         payload_code = json.dumps(payload, indent=4) if payload else "None"
         query_code = json.dumps(query_params, indent=4) if query_params else "None"
 
-        # ----------------------------------
-        # ROLE-BASED TEST GENERATION
-        # ----------------------------------
+        # --------------------------------------------------
+        # ROLE BASED TESTS
+        # --------------------------------------------------
         if role_access:
+
             for role_name, is_allowed in role_access.items():
 
                 tc_id = next_tc_id()
@@ -218,120 +220,114 @@ def safe_request(method, url, **kwargs):
 
                 if is_allowed:
 
-                    code += textwrap.dedent(f"""
-    @pytest.mark.functional
-    @pytest.mark.rbac
-    @pytest.mark.{risk}
-    def test_{test_base_name}_as_{role_name}({fixture_name}):
-        \"\"\"
-        Test Case ID: {tc_id}
-        Role: {role_name}
-        Classification: {classification}
-        Risk Level: {risk}
-        \"\"\"
+                    request_block = (
+                        f"""response = safe_request(
+        "{method}",
+        url,
+        headers={fixture_name},"""
+                    )
 
-        url = {url_expr}
-        payload = {payload_code}
-        query = {query_code}
+                    if content_type == "application/x-www-form-urlencoded":
+                        request_block += """
+        data=payload if payload else None,"""
+                    else:
+                        request_block += """
+        json=payload if payload else None,"""
 
-        response = safe_request(
-            "{method}",
-            url,
-            headers={fixture_name},
-            json=payload if payload else None,
-            params=query if query else None
-        )
+                    request_block += """
+        params=query if query else None
+    )"""
 
-        log_request_response("{method}", url, response)
+                    code += f"""
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.{risk}
+def test_{test_base_name}_as_{role_name}({fixture_name}):
+    \"\"\"
+    Test Case ID: {tc_id}
+    Role: {role_name}
+    Classification: {classification}
+    Risk Level: {risk}
+    \"\"\"
 
-        # ---- Lifecycle Capture ----
-        if "{classification}" == "create":
-            try:
-                data = response.json()
-                captured = LifecycleChainingEngine.extract_resource_values(
-                    data,
-                    {json.dumps(swagger_spec)}
-                )
-                EXECUTION_CONTEXT.register(captured)
-            except Exception:
-                pass
-                
-        assert response.status_code in (200, 201, 202, 204)
-    """)
+    url = {url_expr}
+    payload = {payload_code}
+    query = {query_code}
+
+    {request_block}
+
+    log_request_response("{method}", url, response)
+"""
+
+                    # Lifecycle capture ONLY for create
+                    if classification == "create":
+                        code += """
+    try:
+        data = response.json()
+        captured = LifecycleChainingEngine.extract_resource_values(data, {})
+        EXECUTION_CONTEXT.register(captured)
+    except Exception:
+        pass
+"""
+
+                    code += """
+    assert response.status_code in (200, 201, 202, 204)
+"""
 
                 else:
 
-                    code += textwrap.dedent(f"""
-    @pytest.mark.security
-    @pytest.mark.rbac
-    @pytest.mark.{risk}
-    def test_{test_base_name}_as_{role_name}_forbidden({fixture_name}):
-        \"\"\"
-        Test Case ID: {tc_id}_SEC
-        Role: {role_name}
-        Expected: Forbidden
-        \"\"\"
+                    code += f"""
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.{risk}
+def test_{test_base_name}_as_{role_name}_forbidden({fixture_name}):
 
-        url = {url_expr}
+    url = {url_expr}
+    response = safe_request("{method}", url, headers={fixture_name})
+    log_request_response("{method}", url, response)
 
-        response = safe_request("{method}", url, headers={fixture_name})
+    assert response.status_code in (401, 403)
+"""
 
-        log_request_response("{method}", url, response)
-
-        assert response.status_code in (401, 403)
-    """)
-
-        # ----------------------------------
-        # UNAUTHENTICATED ACCESS TEST
-        # ----------------------------------
-
+        # --------------------------------------------------
+        # UNAUTHENTICATED TEST
+        # --------------------------------------------------
         if requires_auth:
 
             tc_id = next_tc_id()
 
-            code += textwrap.dedent(f"""
+            code += f"""
 @pytest.mark.security
-@pytest.mark.rbac
 @pytest.mark.{risk}
 def test_{test_base_name}_without_auth():
-    \"\"\"
-    Test Case ID: {tc_id}_NOAUTH
-    Verify unauthenticated access is rejected
-    \"\"\"
 
     url = {url_expr}
     response = safe_request("{method}", url)
-
     log_request_response("{method}", url, response)
 
     assert response.status_code in (401, 403)
-""")
+"""
 
-        # ----------------------------------
-        # CONTRACT SAFETY TEST
-        # ----------------------------------
-
+        # --------------------------------------------------
+        # CONTRACT TEST
+        # --------------------------------------------------
         tc_id = next_tc_id()
 
-        code += textwrap.dedent(f"""
+        code += f"""
 @pytest.mark.contract
 @pytest.mark.{risk}
 def test_{test_base_name}_contract_stability():
-    \"\"\"
-    Test Case ID: {tc_id}_CONTRACT
-    Verify endpoint does not produce 5xx errors
-    \"\"\"
 
     url = {url_expr}
     response = safe_request("{method}", url)
-
     log_request_response("{method}", url, response)
 
     assert response.status_code < 500
-""")
+"""
 
     API_TEST_FILE.write_text(code.strip(), encoding="utf-8")
     print(f"[GENERATED] {API_TEST_FILE}")
+
 
 def replace_path_params(path: str, tc_id: str):
     def replacer(match):
@@ -339,11 +335,6 @@ def replace_path_params(path: str, tc_id: str):
         return str(deterministic_value(tc_id, param_name, "string"))
     return re.sub(r"{([^}]+)}", replacer, path)
 
-import uuid
-
-
-import uuid
-import re
 
 def replace_path_params_with_swagger(path: str, method: str, swagger_spec: dict, tc_id: str):
     """
