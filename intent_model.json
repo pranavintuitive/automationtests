@@ -1,0 +1,279 @@
+[
+  {
+    "endpoint": "/api/v1/auth/auth/login",
+    "method": "POST",
+    "classification": "create",
+    "risk_level": "high",
+    "test_types": [
+      "contract",
+      "functional"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/v1/projects/projects/",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract",
+      "pagination",
+      "sorting",
+      "filtering"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": true,
+    "sorting": true,
+    "filtering": true
+  },
+  {
+    "endpoint": "/api/v1/api/health/health",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract",
+      "pagination",
+      "sorting",
+      "filtering"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": true,
+    "sorting": true,
+    "filtering": true
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/start",
+    "method": "POST",
+    "classification": "create",
+    "risk_level": "high",
+    "test_types": [
+      "contract",
+      "functional"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve",
+    "method": "POST",
+    "classification": "create",
+    "risk_level": "high",
+    "test_types": [
+      "contract",
+      "functional"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject",
+    "method": "POST",
+    "classification": "create",
+    "risk_level": "high",
+    "test_types": [
+      "contract",
+      "functional"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/{job_id}/status",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/{job_id}/steps/{step}",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/admin/dead-letter",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract",
+      "pagination",
+      "sorting",
+      "filtering"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": true,
+    "sorting": true,
+    "filtering": true
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/admin/jobs/{job_id}",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset",
+    "method": "POST",
+    "classification": "create",
+    "risk_level": "high",
+    "test_types": [
+      "contract",
+      "functional"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/events/{job_id}",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract"
+    ],
+    "roles": {
+      "requires_auth": false,
+      "role_access": {
+        "admin": true,
+        "user": true
+      }
+    },
+    "async": false,
+    "pagination": false,
+    "sorting": false,
+    "filtering": false
+  },
+  {
+    "endpoint": "/api/v1/api/workflows/workflows/jobs",
+    "method": "GET",
+    "classification": "read",
+    "risk_level": "low",
+    "test_types": [
+      "contract",
+      "pagination",
+      "sorting",
+      "filtering"
+    ],
+    "roles": {
+      "requires_auth": true,
+      "role_access": {
+        "admin": true,
+        "user": false
+      }
+    },
+    "async": false,
+    "pagination": true,
+    "sorting": true,
+    "filtering": true
+  }
+]

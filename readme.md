@@ -1,96 +1,168 @@
-# Automation Test Agent (Swagger-Driven)
-
-An intelligent automation agent that **reads Swagger/OpenAPI specifications** and **generates deterministic, maintainable API tests** with logging, reporting, and CI/CD support.
-
-The agent focuses on **contract validation, functional behavior, and negative scenarios**, while ensuring:
-- deterministic test data
-- repeatable executions
-- non-destructive behavior across environments
-- always-published test reports (even on failures)
+# Automation Test Agent  
+## Swagger-Driven, Behavior-Aware, Deterministic Test Generation Framework
 
 ---
 
-##  Key Capabilities
+## What This Project Is
 
-### Swagger-Driven Test Generation
-- Reads OpenAPI / Swagger definitions
-- Extracts endpoints, methods, parameters, schemas
-- Automatically generates:
-  - Positive tests
-  - Negative tests
-  - Authentication-aware tests
+Automation Test Agent is an intelligent API automation framework that:
 
-###  Deterministic Test Data
-- All payloads are generated using a **deterministic data factory**
-- No randomness → no flaky tests
-- Same Swagger + same inputs = same tests every run
+- Reads OpenAPI / Swagger specifications
+- Explores live runtime behavior
+- Detects authentication and role access
+- Builds a structured intent model
+- Generates deterministic, schema-compliant test payloads
+- Produces production-ready pytest test suites
+- Generates CI pipelines automatically
 
-###  Contract (Schema) Validation
-- Response bodies are validated against Swagger response schemas
-- Detects:
-  - missing fields
-  - type mismatches
-  - contract regressions
+This is not a simple test generator.
 
-###  BDD-Style Readable Tests
-Generated tests follow a **Given / When / Then** structure:
+It is a layered automation architecture designed to evolve toward:
+- Stateful lifecycle testing
+- Dependency resolution
+- Intelligent chaining
+- Contract drift detection
+- Risk-based coverage modeling
 
-###  prerequisits
-    -python 3.12.x
-    -sudo apt install python3-pip
-    -pip install --upgrade pip
-    -pip install openai python-dotenv
-```python
-"""
-Test Case ID: TC_API_001
-GIVEN a valid request to fetch projects
-WHEN the client sends a GET request
-THEN the API should return a successful response
-"""
-```
-# Project Structure
-  
-    automationtestagent/
-    ├── agent/                       
+---
+
+# Architectural Vision
+
+The framework follows a strict layered design:
+
+Swagger → Behavior Explorer → Intent Model →
+Test Data Resolution Engine → Test Generator → Pytest Suite → CI Pipeline
+
+
+Each layer has a clearly defined responsibility and does not overlap concerns.
+
+---
+
+# Core Architectural Layers
+
+---
+
+## 1. Swagger Reader (Structural Layer)
+
+**File:** `agent/swagger_reader.py`
+
+Responsibilities:
+- Load OpenAPI JSON
+- Extract endpoints
+- Extract request/response schemas
+- Provide structural metadata
+
+This layer understands the system contract — not behavior.
+
+---
+
+## 2. Behavior Explorer (Runtime Discovery Layer)
+
+**File:** `agent/behavior_explorer.py`
+
+Responsibilities:
+- Call live endpoints
+- Detect authentication requirements
+- Classify role-based access
+- Detect pagination, filtering, sorting
+- Identify async behavior
+- Capture runtime response schema
+
+Important logic:
+- 401 and 403 → authorization failure
+- 422 → validation failure (access allowed)
+
+This prevents misclassifying POST endpoints as forbidden.
+
+Output: Behavior report.
+
+---
+
+## 3. Intent Model Builder (Business Interpretation Layer)
+
+**File:** `agent/intent_model_builder.py`
+
+Converts behavior into a business-aligned intent model.
+
+Each endpoint is classified into:
+- create
+- read
+- update
+- delete
+- search
+
+Each endpoint gets:
+- risk level
+- test types (contract / functional / security)
+- role access mapping
+
+Output file:
+intent_model.json
+
+Intent model contains business testing intent — not raw Swagger.
+
+---
+
+## 4. Test Data Resolution Engine (Intelligence Layer)
+
+**Directory:** `resolution/`
+
+This is the most critical component.
+
+Responsibilities:
+
+### Schema Handling
+- Recursive `$ref` resolution
+- Nested DTO expansion
+- `anyOf` normalization
+- Nullable handling
+
+### Format Awareness
+- `format: uuid` → deterministic UUID generation
+- `format: date-time` → ISO timestamps
+- Primitive type handling
+
+### Deterministic Data
+- No randomness
+- Reproducible payloads
+- Stable test generation
+
+### Object Construction
+Generates payloads matching Swagger exactly, including nested structures:
+
+Example:
+  ```json
+  {
+    "product_idea": "string",
+    "target_audience": {
+      "primary": ["string"],
+      "secondary": ["string"]
+    },
+    "job_id": "uuid"
+  }
+  "target_audience": "string" ```
+
+
+  repo/
+    ├── agent/
     │   ├── automation_agent.py
+    │   ├── behavior_explorer.py
+    │   ├── intent_model_builder.py
     │   ├── swagger_reader.py
     │   ├── test_generator.py
-    │   ├── generate_tests.py
     │   └── data_factory.py
     │
-    ├── automation/                  
-    │   ├── __init__.py
-    │   ├── api/
-    │   │   ├── test_api.py
-    │   │   └── test_generated_api.py
-    │   ├── utils/
-    │   │   ├── config.py
-    │   │   └── schema_assertions.py
-    │   ├── ui/
-    │   │   └── test_login_ui.py
-    │   └── conftest.py
+    ├── resolution/
+    │   ├── engine.py
+    │   ├── schema_analyzer.py
+    │   ├── field_resolver.py
+    │   ├── dependency_resolver.py
+    │   ├── strategy_selector.py
+    │   ├── validator.py
+    │   └── ...
     │
-    ├── helpers/
-    │   └── outputcleaner.py
-    │
+    ├── automation/
+    ├── intent_model.json
     ├── pytest.ini
     ├── requirements.txt
     └── README.md
-
-
-# Instalation
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Run Agent
-python -m agent.automation_agent
-
-# Run Locally
-pytest automation --html=report.html --self-contained-html
-
-# Selective Test Execution
-## Contract
-pytest -m contract
-## Functional
-pytest -m functional

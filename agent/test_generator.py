@@ -1,13 +1,18 @@
 from pathlib import Path
-import json
 import textwrap
 import re
 import itertools
+import json
 from agent.data_factory import deterministic_value
+from resolution.engine import TestDataResolutionEngine
+from resolution.contracts import TestStepResolutionRequest
+
+
 
 API_TEST_FILE = Path("automation/api/test_generated_api.py")
 
 TC_COUNTER = itertools.count(1)
+
 
 # ----------------------------
 # Helpers
@@ -17,39 +22,12 @@ def next_tc_id() -> str:
     return f"TC_API_{next(TC_COUNTER):03d}"
 
 
-def resolve_path_params(path: str, parameters: list) -> str:
-    for param in parameters or []:
-        if param.get("in") == "path":
-            name = param["name"]
-            path = path.replace("{" + name + "}", f"test_{name}")
-    return path
-
-
 def safe_test_name(value: str) -> str:
     value = value.strip("/")
     value = re.sub(r"[{}\\/]+", "_", value)
     value = re.sub(r"-+", "_", value)
     value = re.sub(r"_+", "_", value)
     return value.lower().strip("_")
-
-
-def requires_auth(endpoint: dict) -> bool:
-    security = endpoint.get("security")
-    if security is None:
-        return True
-    return bool(security)
-
-
-def is_login_endpoint(path: str) -> bool:
-    return "auth/login" in path or path.endswith("/login")
-
-
-def swagger_description(endpoint: dict) -> str:
-    return (
-        endpoint.get("summary")
-        or endpoint.get("description")
-        or "Validate API behavior"
-    ).strip().replace("\n", " ")
 
 
 def bdd_test_name(method: str, path: str) -> str:
@@ -64,29 +42,105 @@ def bdd_test_name(method: str, path: str) -> str:
     return f"{action}_{clean}"
 
 
-def get_response_schema(endpoint: dict):
-    responses = endpoint.get("responses", {})
-    success = responses.get("200") or responses.get("201")
-    if not success:
+# ----------------------------
+# Schema-Based Payload Builder
+# ----------------------------
+
+def build_payload_from_schema(schema: dict, tc_id: str, parent_field: str = ""):
+    if not schema:
         return None
-    return success.get("content", {}).get("application/json", {}).get("schema")
+
+    schema_type = schema.get("type")
+
+    if schema_type == "object":
+        properties = schema.get("properties", {})
+        result = {}
+        for field, field_schema in properties.items():
+            result[field] = build_payload_from_schema(
+                field_schema,
+                tc_id,
+                parent_field=field,
+            )
+        return result
+
+    if schema_type == "array":
+        item_schema = schema.get("items", {})
+        return [build_payload_from_schema(item_schema, tc_id, parent_field)]
+
+    return deterministic_value(tc_id, parent_field, schema_type)
+
+
+def generate_payload_from_intent(ep: dict, tc_id: str):
+    request_schema = ep.get("request_schema")
+
+    if not request_schema:
+        return None
+
+    return build_payload_from_schema(request_schema, tc_id)
+
+
+def generate_query_params_from_intent(ep: dict, tc_id: str):
+    query_schema = ep.get("query_schema")
+    if not query_schema:
+        return None
+
+    return build_payload_from_schema(query_schema, tc_id)
+
+def resolve_with_engine(ep: dict, tc_id: str, swagger_spec_from_Parent: dict):
+    """
+    Uses TestDataResolutionEngine to resolve payload + query safely.
+    Falls back to schema-based builder if resolution fails.
+    """
+
+    try:
+        engine = TestDataResolutionEngine()
+
+        swagger_spec =  swagger_spec_from_Parent  # In real implementation, this would be passed down or accessed globally
+        role_context = {
+            "role": "system",
+            "token": None,
+            "restricted_fields": []
+        }
+
+        resolution_request = TestStepResolutionRequest(
+            endpoint=ep["endpoint"],
+            http_method=ep["method"],
+            swagger_spec=swagger_spec,
+            intent_metadata=ep.get("intent_metadata", {}),
+            role_context=role_context,
+            execution_context={},
+            deterministic_seed=int(tc_id.split("_")[-1]),
+        )
+
+        resolved = engine.resolve(resolution_request)
+
+        return resolved.body, resolved.query_params
+
+    except Exception:
+        # Safe fallback to existing behavior
+        payload = generate_payload_from_intent(ep, tc_id)
+        query = generate_query_params_from_intent(ep, tc_id)
+        return payload, query
 
 
 # ----------------------------
 # Main generator
 # ----------------------------
 
-def generate_tests(base_url: str, endpoints: list):
+def generate_tests(base_url: str, intent_model: list, swagger_spec: dict):
+
     API_TEST_FILE.parent.mkdir(parents=True, exist_ok=True)
 
     code = f"""
 import pytest
 import requests
 import logging
-import json
-from automation.utils.schema_assertions import assert_schema
+from resolution.lifecycle_engine import LifecycleChainingEngine
+from resolution.execution_context import ExecutionContext
 
 BASE_URL = "{base_url}"
+
+EXECUTION_CONTEXT = ExecutionContext()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,9 +148,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler("api_test.log"), logging.StreamHandler()]
 )
 
-def log_request_response(method, url, payload, response):
+def log_request_response(method, url, response):
     logging.info(f"REQUEST {{method}} {{url}}")
-    logging.info(f"Payload: {{payload}}")
     logging.info(f"Status Code: {{response.status_code}}")
     logging.info(f"Response Body: {{response.text[:1000]}}")
 
@@ -106,145 +159,223 @@ def safe_request(method, url, **kwargs):
     except Exception as e:
         logging.exception("Request failed")
         pytest.fail(str(e))
-
-
-@pytest.fixture(scope="session")
-def auth_headers():
-    response = requests.post(
-        f"{{BASE_URL}}/api/v1/auth/auth/login",
-        data={{
-            "grant_type": "password",
-            "username": "admin@acme.com",
-            "password": "admin123",
-            "client_id": "string",
-            "client_secret": "",
-        }},
-        timeout=15,
-    )
-    response.raise_for_status()
-    token = response.json().get("access_token")
-    if not token:
-        pytest.fail("Auth token missing")
-    return {{"Authorization": f"Bearer {{token}}"}}
 """
 
-    for ep in endpoints:
+
+    # ----------------------------
+    # Generate tests per endpoint
+    # ----------------------------
+    creation_endpoints = [
+    ep for ep in intent_model
+    if ep.get("classification") == "create"
+    ]
+
+    non_creation_endpoints = [
+        ep for ep in intent_model
+        if ep.get("classification") != "create"
+    ]
+
+    ordered_endpoints = creation_endpoints + non_creation_endpoints
+
+    for ep in ordered_endpoints:
+
         method = ep["method"].upper()
-        path = resolve_path_params(ep["path"], ep.get("parameters", []))
+        raw_path = ep["endpoint"]
+        tc_id_base = next_tc_id()
+        static_path = raw_path
+        # Replace path params with deterministic placeholder
+        runtime_path  = replace_path_params_with_swagger(
+                                                raw_path,
+                                                method,
+                                                swagger_spec,
+                                                tc_id_base,
+                                                )
 
-        if is_login_endpoint(path):
-            continue
+        classification = ep.get("classification", "unknown")
+        risk = ep.get("risk_level", "medium")
+        roles_info = ep.get("roles", {})
+        role_access = roles_info.get("role_access", {})
+        requires_auth = roles_info.get("requires_auth", False)
 
-        tc_id = next_tc_id()
-        test_name = bdd_test_name(method, path)
-        description = swagger_description(ep)
-        url_expr = f'f"{{BASE_URL}}{path}"'
-        auth_needed = requires_auth(ep)
+        test_base_name = bdd_test_name(method, static_path)
+        url_expr = f'f"{{BASE_URL}}{runtime_path}"'
 
-        payload, payload_type = generate_positive_payload(ep, tc_id)
-        neg_payload = generate_negative_payload(ep, tc_id)
+        # Generate deterministic payload + query
+       
+        payload, query_params = resolve_with_engine(ep, tc_id_base, swagger_spec)
 
-        response_schema = get_response_schema(ep)
-        response_schema_code = json.dumps(response_schema, indent=4) if response_schema else "None"
+        payload_code = json.dumps(payload, indent=4) if payload else "None"
+        query_code = json.dumps(query_params, indent=4) if query_params else "None"
 
-        headers = "headers=auth_headers" if auth_needed else ""
+        # ----------------------------------
+        # ROLE-BASED TEST GENERATION
+        # ----------------------------------
 
-        code += f"\nRESPONSE_SCHEMA = {response_schema_code}\n"
+        for role_name, is_allowed in role_access.items():
 
-        # ---------------- POSITIVE (CONTRACT) ----------------
-        code += textwrap.dedent(f"""
-@pytest.mark.contract
-def test_{test_name}_positive({ "auth_headers" if auth_needed else "" }):
+            tc_id = next_tc_id()
+            fixture_name = f"{role_name}_headers"
+
+            if is_allowed:
+
+                code += textwrap.dedent(f"""
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.{risk}
+def test_{test_base_name}_as_{role_name}({fixture_name}):
     \"\"\"
     Test Case ID: {tc_id}
-    GIVEN {description}
-    WHEN client sends {method} {path}
-    THEN response should match API contract
+    Role: {role_name}
+    Classification: {classification}
+    Risk Level: {risk}
     \"\"\"
 
     url = {url_expr}
-    payload = {json.dumps(payload, indent=4) if payload else "None"}
+    payload = {payload_code}
+    query = {query_code}
 
     response = safe_request(
         "{method}",
         url,
-        {"data" if payload_type == "form" else "json"}=payload if payload else None,
-        {headers}
+        headers={fixture_name},
+        json=payload if payload else None,
+        params=query if query else None
     )
 
-    log_request_response("{method}", url, payload, response)
+    log_request_response("{method}", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
+    # ---- Lifecycle Capture ----
+    if "{classification}" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {json.dumps(swagger_spec)}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+            
+    assert response.status_code in (200, 201, 202, 204)
 """)
 
-        # ---------------- NEGATIVE ----------------
-        code += textwrap.dedent(f"""
-def test_{test_name}_negative({ "auth_headers" if auth_needed else "" }):
+            else:
+
+                code += textwrap.dedent(f"""
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.{risk}
+def test_{test_base_name}_as_{role_name}_forbidden({fixture_name}):
     \"\"\"
-    Test Case ID: {tc_id}_NEG
-    GIVEN invalid input
-    WHEN client sends {method}
-    THEN API should reject request
+    Test Case ID: {tc_id}_SEC
+    Role: {role_name}
+    Expected: Forbidden
     \"\"\"
 
     url = {url_expr}
-    payload = {json.dumps(neg_payload, indent=4) if neg_payload else "None"}
 
-    response = safe_request(
-        "{method}",
-        url,
-        json=payload if payload else None,
-        {headers}
-    )
+    response = safe_request("{method}", url, headers={fixture_name})
 
-    log_request_response("{method}", url, payload, response)
+    log_request_response("{method}", url, response)
 
-    assert response.status_code in (400,401,403,404,422)
+    assert response.status_code in (401, 403)
+""")
+
+        # ----------------------------------
+        # UNAUTHENTICATED ACCESS TEST
+        # ----------------------------------
+
+        if requires_auth:
+
+            tc_id = next_tc_id()
+
+            code += textwrap.dedent(f"""
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.{risk}
+def test_{test_base_name}_without_auth():
+    \"\"\"
+    Test Case ID: {tc_id}_NOAUTH
+    Verify unauthenticated access is rejected
+    \"\"\"
+
+    url = {url_expr}
+    response = safe_request("{method}", url)
+
+    log_request_response("{method}", url, response)
+
+    assert response.status_code in (401, 403)
+""")
+
+        # ----------------------------------
+        # CONTRACT SAFETY TEST
+        # ----------------------------------
+
+        tc_id = next_tc_id()
+
+        code += textwrap.dedent(f"""
+@pytest.mark.contract
+@pytest.mark.{risk}
+def test_{test_base_name}_contract_stability():
+    \"\"\"
+    Test Case ID: {tc_id}_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    \"\"\"
+
+    url = {url_expr}
+    response = safe_request("{method}", url)
+
+    log_request_response("{method}", url, response)
+
+    assert response.status_code < 500
 """)
 
     API_TEST_FILE.write_text(code.strip(), encoding="utf-8")
     print(f"[GENERATED] {API_TEST_FILE}")
 
+def replace_path_params(path: str, tc_id: str):
+    def replacer(match):
+        param_name = match.group(1)
+        return str(deterministic_value(tc_id, param_name, "string"))
+    return re.sub(r"{([^}]+)}", replacer, path)
 
-# ----------------------------
-# Payload generators
-# ----------------------------
+import uuid
 
-def generate_positive_payload(endpoint: dict, tc_id: str):
-    body = endpoint.get("requestBody")
-    if not body:
-        return None, None
 
-    content = body.get("content", {})
+def replace_path_params_with_swagger(path: str, method: str, swagger_spec: dict, tc_id: str):
+    """
+    Replaces {path} parameters using Swagger schema.
+    Supports uuid format properly.
+    """
 
-    if "application/x-www-form-urlencoded" in content:
-        schema = content["application/x-www-form-urlencoded"].get("schema", {})
-        payload_type = "form"
-    elif "application/json" in content:
-        schema = content["application/json"].get("schema", {})
-        payload_type = "json"
-    else:
-        return None, None
+    paths = swagger_spec.get("paths", {})
+    path_item = paths.get(path, {})
+    operation = path_item.get(method.lower(), {})
 
-    properties = schema.get("properties", {})
-    payload = {
-        field: deterministic_value(tc_id, field, spec.get("type"))
-        for field, spec in properties.items()
+    # Collect parameters from both path-level and operation-level
+    parameters = []
+    parameters.extend(path_item.get("parameters", []))
+    parameters.extend(operation.get("parameters", []))
+
+    param_map = {
+        p["name"]: p.get("schema", {})
+        for p in parameters
+        if p.get("in") == "path"
     }
 
-    return payload, payload_type
+    def replacer(match):
+        param_name = match.group(1)
+        schema = param_map.get(param_name, {})
 
+        param_type = schema.get("type")
 
-def generate_negative_payload(endpoint: dict, tc_id: str):
-    payload, _ = generate_positive_payload(endpoint, tc_id)
-    if not payload:
-        return None
-    payload = payload.copy()
-    payload.pop(next(iter(payload)))
-    return payload
+        fallback = deterministic_value(
+            tc_id,
+            param_name,
+            param_type or "string"
+        )
+
+        # Build runtime-safe expression
+        return '{' + f'EXECUTION_CONTEXT.get("{param_name}") or "{fallback}"' + '}'
+
+    return re.sub(r"{([^}]+)}", replacer, path)

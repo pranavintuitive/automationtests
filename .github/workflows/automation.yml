@@ -17,15 +17,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r automation/requirements.txt
           playwright install --with-deps
 
+      - name: Set environment variables
+        run: |
+            echo "BASE_URL=${{ secrets.BASE_URL }}" >> $GITHUB_ENV
+            echo "ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME }}" >> $GITHUB_ENV
+            echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> $GITHUB_ENV
+            echo "USER_USERNAME=${{ secrets.USER_USERNAME }}" >> $GITHUB_ENV
+            echo "USER_PASSWORD=${{ secrets.USER_PASSWORD }}" >> $GITHUB_ENV
+      
       - name: Run tests
         run: |
-          pytest automation --html=report.html --self-contained-html || true
+          pytest automation --html=report.html --self-contained-html
 
       - name: Publish report
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: automation-report

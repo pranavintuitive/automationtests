@@ -1,10 +1,12 @@
 import pytest
 import requests
 import logging
-import json
-from automation.utils.schema_assertions import assert_schema
+from resolution.lifecycle_engine import LifecycleChainingEngine
+from resolution.execution_context import ExecutionContext
 
-BASE_URL = "http://34.173.227.240:8000"
+BASE_URL = "http://34.56.161.228:8000/"
+
+EXECUTION_CONTEXT = ExecutionContext()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,9 +14,8 @@ logging.basicConfig(
     handlers=[logging.FileHandler("api_test.log"), logging.StreamHandler()]
 )
 
-def log_request_response(method, url, payload, response):
+def log_request_response(method, url, response):
     logging.info(f"REQUEST {method} {url}")
-    logging.info(f"Payload: {payload}")
     logging.info(f"Status Code: {response.status_code}")
     logging.info(f"Response Body: {response.text[:1000]}")
 
@@ -25,658 +26,1197 @@ def safe_request(method, url, **kwargs):
         logging.exception("Request failed")
         pytest.fail(str(e))
 
-
-@pytest.fixture(scope="session")
-def auth_headers():
-    response = requests.post(
-        f"{BASE_URL}/api/v1/auth/auth/login",
-        data={
-            "grant_type": "password",
-            "username": "admin@acme.com",
-            "password": "admin123",
-            "client_id": "string",
-            "client_secret": "",
-        },
-        timeout=15,
-    )
-    response.raise_for_status()
-    token = response.json().get("access_token")
-    if not token:
-        pytest.fail("Auth token missing")
-    return {"Authorization": f"Bearer {token}"}
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_v1_projects_projects_positive(auth_headers):
-    """
-    Test Case ID: TC_API_001
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/v1/projects/projects/
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_v1_projects_projects_negative(auth_headers):
-    """
-    Test Case ID: TC_API_001_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_health_health_positive(auth_headers):
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_auth_auth_login_as_admin(admin_headers):
     """
     Test Case ID: TC_API_002
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/health/health
-    THEN response should match API contract
+    Role: admin
+    Classification: create
+    Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/health/health"
+    url = f"{BASE_URL}/api/v1/auth/auth/login"
     payload = None
+    query = None
 
     response = safe_request(
-        "GET",
+        "POST",
         url,
+        headers=admin_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("GET", url, payload, response)
+    log_request_response("POST", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 201, 202, 204)
 
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_health_health_negative(auth_headers):
-    """
-    Test Case ID: TC_API_002_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/health/health"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_create_api_v1_api_workflows_workflows_start_positive(auth_headers):
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_auth_auth_login_as_user(user_headers):
     """
     Test Case ID: TC_API_003
-    GIVEN Validate API behavior
-    WHEN client sends POST /api/v1/api/workflows/workflows/start
-    THEN response should match API contract
+    Role: user
+    Classification: create
+    Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
+    url = f"{BASE_URL}/api/v1/auth/auth/login"
     payload = None
+    query = None
 
     response = safe_request(
         "POST",
         url,
+        headers=user_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("POST", url, payload, response)
+    log_request_response("POST", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
 
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_create_api_v1_api_workflows_workflows_start_negative(auth_headers):
-    """
-    Test Case ID: TC_API_003_NEG
-    GIVEN invalid input
-    WHEN client sends POST
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
-    payload = None
-
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("POST", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
+    assert response.status_code in (200, 201, 202, 204)
 
 @pytest.mark.contract
-def test_create_api_v1_api_workflows_workflows_steps_test_job_id_test_step_approve_positive(auth_headers):
+@pytest.mark.high
+def test_create_api_v1_auth_auth_login_contract_stability():
     """
-    Test Case ID: TC_API_004
-    GIVEN Validate API behavior
-    WHEN client sends POST /api/v1/api/workflows/workflows/steps/test_job_id/test_step/approve
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/test_job_id/test_step/approve"
-    payload = None
-
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("POST", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_create_api_v1_api_workflows_workflows_steps_test_job_id_test_step_approve_negative(auth_headers):
-    """
-    Test Case ID: TC_API_004_NEG
-    GIVEN invalid input
-    WHEN client sends POST
-    THEN API should reject request
+    Test Case ID: TC_API_004_CONTRACT
+    Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/test_job_id/test_step/approve"
-    payload = None
+    url = f"{BASE_URL}/api/v1/auth/auth/login"
+    response = safe_request("POST", url)
 
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
+    log_request_response("POST", url, response)
 
-    log_request_response("POST", url, payload, response)
+    assert response.status_code < 500
 
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_create_api_v1_api_workflows_workflows_steps_test_job_id_test_step_reject_positive(auth_headers):
-    """
-    Test Case ID: TC_API_005
-    GIVEN Validate API behavior
-    WHEN client sends POST /api/v1/api/workflows/workflows/steps/test_job_id/test_step/reject
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/test_job_id/test_step/reject"
-    payload = None
-
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("POST", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_create_api_v1_api_workflows_workflows_steps_test_job_id_test_step_reject_negative(auth_headers):
-    """
-    Test Case ID: TC_API_005_NEG
-    GIVEN invalid input
-    WHEN client sends POST
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/test_job_id/test_step/reject"
-    payload = None
-
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("POST", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_test_job_id_status_positive(auth_headers):
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_start_as_admin(admin_headers):
     """
     Test Case ID: TC_API_006
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/test_job_id/status
-    THEN response should match API contract
+    Role: admin
+    Classification: create
+    Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/test_job_id/status"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_test_job_id_status_negative(auth_headers):
-    """
-    Test Case ID: TC_API_006_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/test_job_id/status"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_test_job_id_steps_test_step_positive(auth_headers):
-    """
-    Test Case ID: TC_API_007
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/test_job_id/steps/test_step
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/test_job_id/steps/test_step"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_test_job_id_steps_test_step_negative(auth_headers):
-    """
-    Test Case ID: TC_API_007_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/test_job_id/steps/test_step"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_admin_dead_letter_positive(auth_headers):
-    """
-    Test Case ID: TC_API_008
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/admin/dead-letter
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/dead-letter"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_admin_dead_letter_negative(auth_headers):
-    """
-    Test Case ID: TC_API_008_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/dead-letter"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_admin_jobs_test_job_id_positive(auth_headers):
-    """
-    Test Case ID: TC_API_009
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/admin/jobs/test_job_id
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/test_job_id"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
-
-    assert response.status_code == 200
-
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_admin_jobs_test_job_id_negative(auth_headers):
-    """
-    Test Case ID: TC_API_009_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/test_job_id"
-    payload = None
-
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
-
-    log_request_response("GET", url, payload, response)
-
-    assert response.status_code in (400,401,403,404,422)
-
-RESPONSE_SCHEMA = None
-
-@pytest.mark.contract
-def test_create_api_v1_api_workflows_workflows_admin_jobs_test_job_id_reset_positive(auth_headers):
-    """
-    Test Case ID: TC_API_010
-    GIVEN Validate API behavior
-    WHEN client sends POST /api/v1/api/workflows/workflows/admin/jobs/test_job_id/reset
-    THEN response should match API contract
-    """
-
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/test_job_id/reset"
-    payload = None
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
+    payload = {
+    "product_idea": "product_idea_771",
+    "domain": "domain_5033",
+    "target_audience": {
+        "primary": [
+            "primary_7842"
+        ],
+        "secondary": [
+            "secondary_9905"
+        ]
+    },
+    "documentation_objective": "documentation_objective_7763",
+    "regulatory_context": [
+        "regulatory_context_7419"
+    ],
+    "job_id": "40f15e7c-933b-5e10-aa69-82550e6faa32"
+}
+    query = None
 
     response = safe_request(
         "POST",
         url,
+        headers=admin_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("POST", url, payload, response)
+    log_request_response("POST", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 201, 202, 204)
 
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_create_api_v1_api_workflows_workflows_admin_jobs_test_job_id_reset_negative(auth_headers):
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_start_as_user_forbidden(user_headers):
     """
-    Test Case ID: TC_API_010_NEG
-    GIVEN invalid input
-    WHEN client sends POST
-    THEN API should reject request
+    Test Case ID: TC_API_007_SEC
+    Role: user
+    Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/test_job_id/reset"
-    payload = None
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
 
-    response = safe_request(
-        "POST",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
+    response = safe_request("POST", url, headers=user_headers)
 
-    log_request_response("POST", url, payload, response)
+    log_request_response("POST", url, response)
 
-    assert response.status_code in (400,401,403,404,422)
+    assert response.status_code in (401, 403)
 
-RESPONSE_SCHEMA = None
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_start_without_auth():
+    """
+    Test Case ID: TC_API_008_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
 
 @pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_events_test_job_id_positive(auth_headers):
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_start_contract_stability():
+    """
+    Test Case ID: TC_API_009_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/start"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_admin(admin_headers):
     """
     Test Case ID: TC_API_011
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/events/test_job_id
-    THEN response should match API contract
+    Role: admin
+    Classification: create
+    Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/test_job_id"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
     payload = None
+    query = None
 
     response = safe_request(
-        "GET",
+        "POST",
         url,
+        headers=admin_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("GET", url, payload, response)
+    log_request_response("POST", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 201, 202, 204)
 
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_events_test_job_id_negative(auth_headers):
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_user_forbidden(user_headers):
     """
-    Test Case ID: TC_API_011_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
+    Test Case ID: TC_API_012_SEC
+    Role: user
+    Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/test_job_id"
-    payload = None
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
 
-    response = safe_request(
-        "GET",
-        url,
-        json=payload if payload else None,
-        headers=auth_headers
-    )
+    response = safe_request("POST", url, headers=user_headers)
 
-    log_request_response("GET", url, payload, response)
+    log_request_response("POST", url, response)
 
-    assert response.status_code in (400,401,403,404,422)
+    assert response.status_code in (401, 403)
 
-RESPONSE_SCHEMA = None
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_without_auth():
+    """
+    Test Case ID: TC_API_013_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
 
 @pytest.mark.contract
-def test_get_api_v1_api_workflows_workflows_jobs_positive(auth_headers):
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_contract_stability():
     """
-    Test Case ID: TC_API_012
-    GIVEN Validate API behavior
-    WHEN client sends GET /api/v1/api/workflows/workflows/jobs
-    THEN response should match API contract
+    Test Case ID: TC_API_014_CONTRACT
+    Verify endpoint does not produce 5xx errors
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_6343"}/{EXECUTION_CONTEXT.get("step") or "step_3365"}/approve"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_016
+    Role: admin
+    Classification: create
+    Risk Level: high
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
     payload = None
+    query = None
+
+    response = safe_request(
+        "POST",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("POST", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_user_forbidden(user_headers):
+    """
+    Test Case ID: TC_API_017_SEC
+    Role: user
+    Expected: Forbidden
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+
+    response = safe_request("POST", url, headers=user_headers)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_without_auth():
+    """
+    Test Case ID: TC_API_018_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.contract
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_contract_stability():
+    """
+    Test Case ID: TC_API_019_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get("job_id") or "job_id_3424"}/{EXECUTION_CONTEXT.get("step") or "step_6143"}/reject"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_021
+    Role: admin
+    Classification: create
+    Risk Level: high
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "POST",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("POST", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "create" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_user_forbidden(user_headers):
+    """
+    Test Case ID: TC_API_022_SEC
+    Role: user
+    Expected: Forbidden
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+
+    response = safe_request("POST", url, headers=user_headers)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_without_auth():
+    """
+    Test Case ID: TC_API_023_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.contract
+@pytest.mark.high
+def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_contract_stability():
+    """
+    Test Case ID: TC_API_024_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_4547"}/reset"
+    response = safe_request("POST", url)
+
+    log_request_response("POST", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_v1_projects_projects_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_026
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
+    payload = None
+    query = None
 
     response = safe_request(
         "GET",
         url,
+        headers=admin_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("GET", url, payload, response)
+    log_request_response("GET", url, response)
 
-    if response.status_code == 404:
-        pytest.xfail("Path parameter placeholder")
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
 
-    assert response.status_code == 200
+    assert response.status_code in (200, 201, 202, 204)
 
-    if RESPONSE_SCHEMA and response.headers.get("content-type","").startswith("application/json"):
-        assert_schema(response.json(), RESPONSE_SCHEMA)
-
-def test_get_api_v1_api_workflows_workflows_jobs_negative(auth_headers):
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_v1_projects_projects_as_user_forbidden(user_headers):
     """
-    Test Case ID: TC_API_012_NEG
-    GIVEN invalid input
-    WHEN client sends GET
-    THEN API should reject request
+    Test Case ID: TC_API_027_SEC
+    Role: user
+    Expected: Forbidden
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
+
+    response = safe_request("GET", url, headers=user_headers)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_v1_projects_projects_without_auth():
+    """
+    Test Case ID: TC_API_028_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_v1_projects_projects_contract_stability():
+    """
+    Test Case ID: TC_API_029_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/v1/projects/projects/"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_health_health_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_031
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/health/health"
     payload = None
+    query = None
 
     response = safe_request(
         "GET",
         url,
+        headers=admin_headers,
         json=payload if payload else None,
-        headers=auth_headers
+        params=query if query else None
     )
 
-    log_request_response("GET", url, payload, response)
+    log_request_response("GET", url, response)
 
-    assert response.status_code in (400,401,403,404,422)
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_health_health_as_user(user_headers):
+    """
+    Test Case ID: TC_API_032
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/health/health"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_health_health_contract_stability():
+    """
+    Test Case ID: TC_API_033_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/health/health"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_status_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_035
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_status_as_user(user_headers):
+    """
+    Test Case ID: TC_API_036
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_status_contract_stability():
+    """
+    Test Case ID: TC_API_037_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9703"}/status"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_039
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_user(user_headers):
+    """
+    Test Case ID: TC_API_040
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_job_id_steps_step_contract_stability():
+    """
+    Test Case ID: TC_API_041_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get("job_id") or "job_id_9757"}/steps/{EXECUTION_CONTEXT.get("step") or "step_8459"}"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_dead_letter_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_043
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/dead-letter"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_dead_letter_as_user(user_headers):
+    """
+    Test Case ID: TC_API_044
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/dead-letter"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_dead_letter_contract_stability():
+    """
+    Test Case ID: TC_API_045_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/dead-letter"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_047
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_user(user_headers):
+    """
+    Test Case ID: TC_API_048
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_contract_stability():
+    """
+    Test Case ID: TC_API_049_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get("job_id") or "job_id_9568"}"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_events_job_id_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_051
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_events_job_id_as_user(user_headers):
+    """
+    Test Case ID: TC_API_052
+    Role: user
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=user_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_events_job_id_contract_stability():
+    """
+    Test Case ID: TC_API_053_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get("job_id") or "job_id_5148"}"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500
+
+@pytest.mark.functional
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_jobs_as_admin(admin_headers):
+    """
+    Test Case ID: TC_API_055
+    Role: admin
+    Classification: read
+    Risk Level: low
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+    payload = None
+    query = None
+
+    response = safe_request(
+        "GET",
+        url,
+        headers=admin_headers,
+        json=payload if payload else None,
+        params=query if query else None
+    )
+
+    log_request_response("GET", url, response)
+
+    # ---- Lifecycle Capture ----
+    if "read" == "create":
+        try:
+            data = response.json()
+            captured = LifecycleChainingEngine.extract_resource_values(
+                data,
+                {"openapi": "3.1.0", "info": {"title": "SDLC AI Platform", "version": "1.0.0"}, "paths": {"/api/v1/auth/auth/login": {"post": {"tags": ["auth", "auth"], "summary": "Login", "description": "OAuth2-compatible login.\nSwagger sends:\n  - username\n  - password", "operationId": "login_api_v1_auth_auth_login_post", "requestBody": {"content": {"application/x-www-form-urlencoded": {"schema": {"$ref": "#/components/schemas/Body_login_api_v1_auth_auth_login_post"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/v1/projects/projects/": {"get": {"tags": ["projects", "projects"], "summary": "List Projects", "operationId": "list_projects_api_v1_api_v1_projects_projects__get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/health/health": {"get": {"tags": ["health"], "summary": "Health", "operationId": "health_api_v1_api_health_health_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/start": {"post": {"tags": ["workflows", "workflows"], "summary": "Start Or Resume", "operationId": "start_or_resume_api_v1_api_workflows_workflows_start_post", "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/StartWorkflowRequestDTO"}}}, "required": true}, "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/approve": {"post": {"tags": ["workflows", "workflows"], "summary": "Approve Step", "operationId": "approve_step_api_v1_api_workflows_workflows_steps__job_id___step__approve_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/steps/{job_id}/{step}/reject": {"post": {"tags": ["workflows", "workflows"], "summary": "Reject Step", "operationId": "reject_step_api_v1_api_workflows_workflows_steps__job_id___step__reject_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/status": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Job Status", "operationId": "get_job_status_api_v1_api_workflows_workflows__job_id__status_get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/WorkflowStatusResponseDTO"}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/{job_id}/steps/{step}": {"get": {"tags": ["workflows", "workflows"], "summary": "Get Step", "operationId": "get_step_api_v1_api_workflows_workflows__job_id__steps__step__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}, {"name": "step", "in": "path", "required": true, "schema": {"type": "string", "title": "Step"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/dead-letter": {"get": {"tags": ["workflows", "workflows"], "summary": "List Dead Letter Jobs", "operationId": "list_dead_letter_jobs_api_v1_api_workflows_workflows_admin_dead_letter_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Inspect Job", "operationId": "inspect_job_api_v1_api_workflows_workflows_admin_jobs__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/admin/jobs/{job_id}/reset": {"post": {"tags": ["workflows", "workflows"], "summary": "Reset Dead Letter Job", "operationId": "reset_dead_letter_job_api_v1_api_workflows_workflows_admin_jobs__job_id__reset_post", "security": [{"OAuth2PasswordBearer": []}], "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/events/{job_id}": {"get": {"tags": ["workflows", "workflows"], "summary": "Stream Events", "operationId": "stream_events_api_v1_api_workflows_workflows_events__job_id__get", "parameters": [{"name": "job_id", "in": "path", "required": true, "schema": {"type": "string", "format": "uuid", "title": "Job Id"}}], "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}, "422": {"description": "Validation Error", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/HTTPValidationError"}}}}}}}, "/api/v1/api/workflows/workflows/jobs": {"get": {"tags": ["workflows", "workflows"], "summary": "List Jobs", "operationId": "list_jobs_api_v1_api_workflows_workflows_jobs_get", "responses": {"200": {"description": "Successful Response", "content": {"application/json": {"schema": {}}}}}, "security": [{"OAuth2PasswordBearer": []}]}}}, "components": {"schemas": {"Body_login_api_v1_auth_auth_login_post": {"properties": {"grant_type": {"anyOf": [{"type": "string", "pattern": "^password$"}, {"type": "null"}], "title": "Grant Type"}, "username": {"type": "string", "title": "Username"}, "password": {"type": "string", "format": "password", "title": "Password"}, "scope": {"type": "string", "title": "Scope", "default": ""}, "client_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Client Id"}, "client_secret": {"anyOf": [{"type": "string"}, {"type": "null"}], "format": "password", "title": "Client Secret"}}, "type": "object", "required": ["username", "password"], "title": "Body_login_api_v1_auth_auth_login_post"}, "DeadLetterDTO": {"properties": {"step": {"type": "string", "title": "Step"}, "error": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "failed_at": {"type": "string", "format": "date-time", "title": "Failed At"}}, "type": "object", "required": ["step", "error", "failed_at"], "title": "DeadLetterDTO"}, "ErrorDetailDTO": {"properties": {"message": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Type"}}, "type": "object", "required": ["message", "type"], "title": "ErrorDetailDTO"}, "HTTPValidationError": {"properties": {"detail": {"items": {"$ref": "#/components/schemas/ValidationError"}, "type": "array", "title": "Detail"}}, "type": "object", "title": "HTTPValidationError"}, "RetryPolicyDTO": {"properties": {"intake": {"type": "integer", "title": "Intake"}, "scope": {"type": "integer", "title": "Scope"}, "requirements": {"type": "integer", "title": "Requirements"}, "architecture": {"type": "integer", "title": "Architecture"}, "estimation": {"type": "integer", "title": "Estimation"}, "risk": {"type": "integer", "title": "Risk"}, "sow": {"type": "integer", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "RetryPolicyDTO"}, "StartWorkflowRequestDTO": {"properties": {"product_idea": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Product Idea", "description": "Core product idea to initiate workflow"}, "domain": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Domain", "description": "Business domain of the product"}, "target_audience": {"anyOf": [{"$ref": "#/components/schemas/TargetAudienceDTO"}, {"type": "null"}]}, "documentation_objective": {"anyOf": [{"type": "string"}, {"type": "null"}], "title": "Documentation Objective"}, "regulatory_context": {"anyOf": [{"items": {"type": "string"}, "type": "array"}, {"type": "null"}], "title": "Regulatory Context"}, "job_id": {"anyOf": [{"type": "string", "format": "uuid"}, {"type": "null"}], "title": "Job Id", "description": "Existing job ID to resume workflow"}}, "type": "object", "title": "StartWorkflowRequestDTO"}, "StepStatusDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepStatusDTO"}, "StepsDTO": {"properties": {"intake": {"type": "string", "title": "Intake"}, "scope": {"type": "string", "title": "Scope"}, "requirements": {"type": "string", "title": "Requirements"}, "architecture": {"type": "string", "title": "Architecture"}, "estimation": {"type": "string", "title": "Estimation"}, "risk": {"type": "string", "title": "Risk"}, "sow": {"type": "string", "title": "Sow"}}, "type": "object", "required": ["intake", "scope", "requirements", "architecture", "estimation", "risk", "sow"], "title": "StepsDTO"}, "TargetAudienceDTO": {"properties": {"primary": {"items": {"type": "string"}, "type": "array", "title": "Primary"}, "secondary": {"items": {"type": "string"}, "type": "array", "title": "Secondary"}}, "type": "object", "required": ["primary", "secondary"], "title": "TargetAudienceDTO"}, "ValidationError": {"properties": {"loc": {"items": {"anyOf": [{"type": "string"}, {"type": "integer"}]}, "type": "array", "title": "Location"}, "msg": {"type": "string", "title": "Message"}, "type": {"type": "string", "title": "Error Type"}}, "type": "object", "required": ["loc", "msg", "type"], "title": "ValidationError"}, "WorkflowResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepsDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": true, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": true, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": true, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": true, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": true, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": true, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{}, {"type": "null"}], "title": "Dead Letter"}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowResponseDTO"}, "WorkflowStatusResponseDTO": {"properties": {"job_id": {"type": "string", "format": "uuid", "title": "Job Id"}, "product_idea": {"type": "string", "title": "Product Idea"}, "job_status": {"type": "string", "title": "Job Status"}, "steps": {"$ref": "#/components/schemas/StepStatusDTO"}, "current_step": {"type": "string", "title": "Current Step"}, "outputs": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Outputs"}, "errors": {"additionalProperties": {"$ref": "#/components/schemas/ErrorDetailDTO"}, "type": "object", "title": "Errors"}, "retries": {"additionalProperties": {"type": "integer"}, "type": "object", "title": "Retries"}, "retry_policy": {"$ref": "#/components/schemas/RetryPolicyDTO"}, "step_started_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Started At"}, "step_completed_at": {"additionalProperties": {"type": "string", "format": "date-time"}, "type": "object", "title": "Step Completed At"}, "step_approvals": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Step Approvals"}, "quality": {"additionalProperties": {"additionalProperties": true, "type": "object"}, "type": "object", "title": "Quality"}, "dead_letter": {"anyOf": [{"$ref": "#/components/schemas/DeadLetterDTO"}, {"type": "null"}]}}, "type": "object", "required": ["job_id", "product_idea", "job_status", "steps", "current_step", "outputs", "errors", "retries", "retry_policy", "step_started_at", "step_completed_at", "step_approvals", "quality"], "title": "WorkflowStatusResponseDTO"}}, "securitySchemes": {"OAuth2PasswordBearer": {"type": "oauth2", "flows": {"password": {"scopes": {}, "tokenUrl": "/api/v1/auth/auth/login"}}}}}}
+            )
+            EXECUTION_CONTEXT.register(captured)
+        except Exception:
+            pass
+
+    assert response.status_code in (200, 201, 202, 204)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_jobs_as_user_forbidden(user_headers):
+    """
+    Test Case ID: TC_API_056_SEC
+    Role: user
+    Expected: Forbidden
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+
+    response = safe_request("GET", url, headers=user_headers)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.security
+@pytest.mark.rbac
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_jobs_without_auth():
+    """
+    Test Case ID: TC_API_057_NOAUTH
+    Verify unauthenticated access is rejected
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code in (401, 403)
+
+@pytest.mark.contract
+@pytest.mark.low
+def test_get_api_v1_api_workflows_workflows_jobs_contract_stability():
+    """
+    Test Case ID: TC_API_058_CONTRACT
+    Verify endpoint does not produce 5xx errors
+    """
+
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/jobs"
+    response = safe_request("GET", url)
+
+    log_request_response("GET", url, response)
+
+    assert response.status_code < 500

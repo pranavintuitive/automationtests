@@ -1,7 +1,11 @@
 import os
 import json
 from pathlib import Path
+
+import requests
 from openai import OpenAI
+from agent.behavior_explorer import BehaviorExplorer
+from agent.intent_model_builder import IntentModelBuilder
 from agent.swagger_reader import read_swagger, extract_endpoints
 from agent.test_generator import generate_tests
 
@@ -94,19 +98,25 @@ Endpoint definition:
 # ---------------------------
 # Common Files
 # ---------------------------
-def ensure_common_files():
-    safe_write(UTILS_DIR / "config.py", """BASE_URL = """ "")
-
+def ensure_common_files(base_url: str):
+    safe_write(UTILS_DIR / "config.py", f'BASE_URL = "{base_url}"\n')
+    
     safe_write(
         AUTOMATION_DIR / "requirements.txt",
         """pytest
 pytest-html
 requests
 playwright
+python-dotenv
 """,
     )
 
-    safe_write(AUTOMATION_DIR / "conftest.py", """import pytest""")
+    conftest_path = AUTOMATION_DIR / "conftest.py"
+
+    if not conftest_path.exists():
+        safe_write(conftest_path, "import pytest\n")
+    else:
+        print("conftest.py already exists — not overriding")
 
 
 # ---------------------------
@@ -136,9 +146,17 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
+          pip install -r automation/requirements.txt
           playwright install --with-deps
 
+      - name: Set environment variables
+        run: |
+            echo "BASE_URL=${{ secrets.BASE_URL }}" >> $GITHUB_ENV
+            echo "ADMIN_USERNAME=${{ secrets.ADMIN_USERNAME }}" >> $GITHUB_ENV
+            echo "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" >> $GITHUB_ENV
+            echo "USER_USERNAME=${{ secrets.USER_USERNAME }}" >> $GITHUB_ENV
+            echo "USER_PASSWORD=${{ secrets.USER_PASSWORD }}" >> $GITHUB_ENV
+      
       - name: Run tests
         run: |
           pytest automation --html=report.html --self-contained-html
@@ -161,28 +179,83 @@ jobs:
 
 def run_agent(spec: dict):
 
-    # --- Swagger driven API discovery ---
     swagger_url = spec.get("swagger_url")
     base_url = spec.get("base_url")
+    environment = spec.get("environment", "staging")
 
-    if swagger_url:
-        swagger_spec = read_swagger(swagger_url)
-        swagger_base_url, endpoints = extract_endpoints(swagger_spec)
-
-        # Swagger server URL takes precedence
-        base_url = swagger_base_url or base_url
-    else:
+    if not swagger_url:
         raise ValueError("swagger_url is required for API test generation")
 
-    # --- Generate API tests ---
+    # ----------------------------
+    #  Read Swagger
+    # ----------------------------
+    print("Reading Swagger...")
+    swagger_spec = read_swagger(swagger_url)
+    swagger_base_url, endpoints = extract_endpoints(swagger_spec)
+
+    base_url = swagger_base_url or base_url
+
+    print(f"Discovered {len(endpoints)} endpoints")
+
+    # ----------------------------
+    # Role Authentication
+    # ----------------------------
+    print("Authenticating roles...")
+
+    role_headers = {}
+    for role_name, credentials in spec.get("roles", {}).items():
+        
+        headers = authenticate_role(
+            base_url,
+            spec["auth"],
+            credentials
+        )
+        role_headers[role_name] = headers
+
+    print(f"Authenticated roles: {list(role_headers.keys())}")
+
+   # ----------------------------
+    # Behavior Explorer
+    # ----------------------------
+    print("Running Behavior Explorer...")
+
+    explorer = BehaviorExplorer(
+        base_url=base_url,
+        endpoints=endpoints,
+        role_headers=role_headers,   # <-- multi-role support
+        environment=environment,
+    )
+
+    behavior_report = explorer.explore_all()
+
+    print(f"Behavior analysis completed for {len(behavior_report)} endpoints")
+
+
+    # ----------------------------
+    # Intent Model Builder
+    # ----------------------------
+    print("Building Intent Model...")
+
+    builder = IntentModelBuilder(behavior_report)
+    intent_model = builder.build()
+    builder.save("intent_model.json")
+
+    print("Intent model saved")
+
+    # ----------------------------
+    # Generate Tests
+    # ----------------------------
     if spec.get("generate_api_tests", True):
-        generate_tests(base_url, endpoints)
+        generate_tests(base_url, intent_model, swagger_spec)
 
-    # --- UI tests intentionally NOT executed ---
     if not spec.get("enable_ui_tests", False):
-        print("ℹ️ UI tests are disabled (code retained, not executed)")
+        print("UI tests are disabled (code retained, not executed)")
 
-    print("\n✅ Automation agent completed successfully")
+    # Ensure CI setup
+    ensure_common_files(base_url)
+    ensure_pipeline()
+    print("\nAutomation agent completed successfully")
+
 
 
 def strip_markdown_fences(code: str) -> str:
@@ -205,6 +278,44 @@ def strip_markdown_fences(code: str) -> str:
     return code.strip()
 
 
+def authenticate_role(base_url: str, auth_config: dict, credentials: dict) -> dict:
+    """
+    Authenticates a role using OAuth2 password flow.
+    Returns headers with Bearer token.
+    """
+
+    login_url = f"{base_url.rstrip('/')}{auth_config['login_path']}"
+
+    form_data = {
+        "grant_type": auth_config.get("grant_type", "password"),
+        "username": credentials["username"],
+        "password": credentials["password"],
+        "scope": "",
+        "client_id": auth_config.get("client_id", "string"),
+        "client_secret": auth_config.get("client_secret", ""),
+    }
+
+    response = requests.post(
+        login_url,
+        data=form_data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Accept": "application/json",
+        },
+        timeout=15,
+    )
+
+    response.raise_for_status()
+
+    token = response.json().get("access_token")
+    if not token:
+        raise ValueError("Authentication succeeded but access_token missing")
+
+    return {
+        "Authorization": f"Bearer {token}"
+    }
+
+
 # ---------------------------
 # Run directly
 # ---------------------------
@@ -212,9 +323,26 @@ if __name__ == "__main__":
 
     SPEC = {
         # Swagger / OpenAPI URL (JSON)
-        "swagger_url": "http://34.173.227.240:8000/openapi.json",
+        "swagger_url": "http://34.56.161.228:8000/openapi.json",
         # Base URL fallback (used if swagger has no servers section)
-        "base_url": "http://34.173.227.240:8000",
+        "base_url": "http://34.56.161.228:8000/",
+        "environment": "staging",
+        "roles": {
+                "admin": {
+                            "username": "admin@acme.com",
+                            "password": "admin123"
+                        },
+                "user": {
+                        "username": "user@acme.com",
+                        "password": "user123"
+                        }
+            },
+            "auth": {
+                        "login_path": "/api/v1/auth/auth/login",
+                        "grant_type": "password",
+                        "client_id": "string",
+                        "client_secret": ""
+                    },
         # Keep UI code in repo, but do not run it
         "enable_ui_tests": False,
         # API test generation options
@@ -222,5 +350,6 @@ if __name__ == "__main__":
         # Overwrite previously generated API tests
         "overwrite": True,
     }
+
 
     run_agent(SPEC)
