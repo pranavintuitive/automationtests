@@ -4,7 +4,7 @@ import logging
 from resolution.lifecycle_engine import LifecycleChainingEngine
 from resolution.execution_context import ExecutionContext
 
-BASE_URL = "http://34.56.161.228:8000"
+BASE_URL = "http://34.56.161.228:8000/"
 EXECUTION_CONTEXT = ExecutionContext()
 
 logging.basicConfig(
@@ -210,7 +210,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_admi
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'c6628335-1ce5-4101-8174-7703f71e10d1'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'd9b88fd1-a755-42dd-99b5-8e659a710a5c'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     payload = None
     query = None
 
@@ -238,7 +238,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_admi
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_user_forbidden(user_headers):
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'c6628335-1ce5-4101-8174-7703f71e10d1'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'd9b88fd1-a755-42dd-99b5-8e659a710a5c'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     response = safe_request("POST", url, headers=user_headers)
     log_request_response("POST", url, response)
 
@@ -248,7 +248,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_as_user
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_without_auth():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'c6628335-1ce5-4101-8174-7703f71e10d1'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'd9b88fd1-a755-42dd-99b5-8e659a710a5c'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -258,7 +258,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_without
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_approve_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'c6628335-1ce5-4101-8174-7703f71e10d1'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'd9b88fd1-a755-42dd-99b5-8e659a710a5c'}/{EXECUTION_CONTEXT.get('step') or 'step_3365'}/approve"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -275,7 +275,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_admin
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or '5a1aeeb0-7062-4f93-984a-bf624db1aa8f'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'f5a30915-f6bf-4a3e-b32f-ce9cf6d74c8a'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     payload = None
     query = None
 
@@ -303,7 +303,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_admin
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_user_forbidden(user_headers):
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or '5a1aeeb0-7062-4f93-984a-bf624db1aa8f'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'f5a30915-f6bf-4a3e-b32f-ce9cf6d74c8a'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     response = safe_request("POST", url, headers=user_headers)
     log_request_response("POST", url, response)
 
@@ -313,7 +313,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_as_user_
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_without_auth():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or '5a1aeeb0-7062-4f93-984a-bf624db1aa8f'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'f5a30915-f6bf-4a3e-b32f-ce9cf6d74c8a'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -323,7 +323,7 @@ def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_without_
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_steps_job_id_step_reject_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or '5a1aeeb0-7062-4f93-984a-bf624db1aa8f'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/steps/{EXECUTION_CONTEXT.get('job_id') or 'f5a30915-f6bf-4a3e-b32f-ce9cf6d74c8a'}/{EXECUTION_CONTEXT.get('step') or 'step_6143'}/reject"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -340,7 +340,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_admin(
     Risk Level: high
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2b353cc3-01d1-47f8-aa11-3b3eedea94c0'}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '70915232-ffc8-4d66-989e-180d225dd69f'}/reset"
     payload = None
     query = None
 
@@ -368,7 +368,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_admin(
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_user_forbidden(user_headers):
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2b353cc3-01d1-47f8-aa11-3b3eedea94c0'}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '70915232-ffc8-4d66-989e-180d225dd69f'}/reset"
     response = safe_request("POST", url, headers=user_headers)
     log_request_response("POST", url, response)
 
@@ -378,7 +378,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_as_user_f
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_without_auth():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2b353cc3-01d1-47f8-aa11-3b3eedea94c0'}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '70915232-ffc8-4d66-989e-180d225dd69f'}/reset"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -388,7 +388,7 @@ def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_without_a
 @pytest.mark.high
 def test_create_api_v1_api_workflows_workflows_admin_jobs_job_id_reset_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2b353cc3-01d1-47f8-aa11-3b3eedea94c0'}/reset"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '70915232-ffc8-4d66-989e-180d225dd69f'}/reset"
     response = safe_request("POST", url)
     log_request_response("POST", url, response)
 
@@ -527,7 +527,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_as_admin(admin_headers
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '85c4a692-21fb-4221-88c7-760e0495bc29'}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '1a4462a9-1e56-4dc3-98c5-5a1f9b9f69df'}/status"
     payload = None
     query = None
 
@@ -554,7 +554,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_as_user(user_headers):
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '85c4a692-21fb-4221-88c7-760e0495bc29'}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '1a4462a9-1e56-4dc3-98c5-5a1f9b9f69df'}/status"
     payload = None
     query = None
 
@@ -574,7 +574,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_status_as_user(user_headers):
 @pytest.mark.low
 def test_get_api_v1_api_workflows_workflows_job_id_status_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '85c4a692-21fb-4221-88c7-760e0495bc29'}/status"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '1a4462a9-1e56-4dc3-98c5-5a1f9b9f69df'}/status"
     response = safe_request("GET", url)
     log_request_response("GET", url, response)
 
@@ -591,7 +591,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_admin(admin_hea
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'a07c2a05-35ca-4f40-8298-c12a7d8798a6'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '3d2b2365-b8e2-4bc9-bd7d-2d123697e7b3'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     payload = None
     query = None
 
@@ -618,7 +618,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_user(user_heade
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'a07c2a05-35ca-4f40-8298-c12a7d8798a6'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '3d2b2365-b8e2-4bc9-bd7d-2d123697e7b3'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     payload = None
     query = None
 
@@ -638,7 +638,7 @@ def test_get_api_v1_api_workflows_workflows_job_id_steps_step_as_user(user_heade
 @pytest.mark.low
 def test_get_api_v1_api_workflows_workflows_job_id_steps_step_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or 'a07c2a05-35ca-4f40-8298-c12a7d8798a6'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/{EXECUTION_CONTEXT.get('job_id') or '3d2b2365-b8e2-4bc9-bd7d-2d123697e7b3'}/steps/{EXECUTION_CONTEXT.get('step') or 'step_8459'}"
     response = safe_request("GET", url)
     log_request_response("GET", url, response)
 
@@ -719,7 +719,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_admin(admin_hea
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'b686fa3e-47ee-44a7-b758-e402aeb0cbac'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2f7cb522-88c6-49f1-8e94-7226b3b834d6'}"
     payload = None
     query = None
 
@@ -746,7 +746,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_user(user_heade
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'b686fa3e-47ee-44a7-b758-e402aeb0cbac'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2f7cb522-88c6-49f1-8e94-7226b3b834d6'}"
     payload = None
     query = None
 
@@ -766,7 +766,7 @@ def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_as_user(user_heade
 @pytest.mark.low
 def test_get_api_v1_api_workflows_workflows_admin_jobs_job_id_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or 'b686fa3e-47ee-44a7-b758-e402aeb0cbac'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/admin/jobs/{EXECUTION_CONTEXT.get('job_id') or '2f7cb522-88c6-49f1-8e94-7226b3b834d6'}"
     response = safe_request("GET", url)
     log_request_response("GET", url, response)
 
@@ -783,7 +783,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_as_admin(admin_headers
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or '3a47bd00-6393-411d-9eeb-55d310db1e8a'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'b42023c8-7c4e-4f2f-ae76-1fd91190de07'}"
     payload = None
     query = None
 
@@ -810,7 +810,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_as_user(user_headers):
     Risk Level: low
     """
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or '3a47bd00-6393-411d-9eeb-55d310db1e8a'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'b42023c8-7c4e-4f2f-ae76-1fd91190de07'}"
     payload = None
     query = None
 
@@ -830,7 +830,7 @@ def test_get_api_v1_api_workflows_workflows_events_job_id_as_user(user_headers):
 @pytest.mark.low
 def test_get_api_v1_api_workflows_workflows_events_job_id_contract_stability():
 
-    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or '3a47bd00-6393-411d-9eeb-55d310db1e8a'}"
+    url = f"{BASE_URL}/api/v1/api/workflows/workflows/events/{EXECUTION_CONTEXT.get('job_id') or 'b42023c8-7c4e-4f2f-ae76-1fd91190de07'}"
     response = safe_request("GET", url)
     log_request_response("GET", url, response)
 
