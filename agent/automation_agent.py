@@ -380,27 +380,32 @@ def authenticate_role(base_url: str, auth_config: dict, credentials: dict) -> di
 if __name__ == "__main__":
 
     SPEC = {
-        "swagger_url": os.getenv("SWAGGER_URL"),
-        "base_url": os.getenv("BASE_URL"),
-        "environment": os.getenv("ENVIRONMENT", "local"),
+        # Swagger / OpenAPI URL (JSON)
+        "swagger_url": "http://34.56.161.228:8000/openapi.json",
+        # Base URL fallback (used if swagger has no servers section)
+        "base_url": "http://34.56.161.228:8000",
+        "environment": "staging",
         "roles": {
-            "admin": {
-                "username": os.getenv("ADMIN_USERNAME"),
-                "password": os.getenv("ADMIN_PASSWORD"),
+                "admin": {
+                            "username": "admin@acme.com",
+                            "password": "admin123"
+                        },
+                "user": {
+                        "username": "user@acme.com",
+                        "password": "user123"
+                        }
             },
-            "user": {
-                "username": os.getenv("USER_USERNAME"),
-                "password": os.getenv("USER_PASSWORD"),
-            },
-        },
-        "auth": {
-            "login_path": os.getenv("LOGIN_PATH", "/api/v1/auth/auth/login"),
-            "grant_type": os.getenv("GRANT_TYPE", "password"),
-            "client_id": os.getenv("CLIENT_ID", ""),
-            "client_secret": os.getenv("CLIENT_SECRET", ""),
-        },
+            "auth": {
+                        "login_path": "/api/v1/auth/auth/login",
+                        "grant_type": "password",
+                        "client_id": "string",
+                        "client_secret": ""
+                    },
+        # Keep UI code in repo, but do not run it
         "enable_ui_tests": False,
+        # API test generation options
         "generate_api_tests": True,
+        # Overwrite previously generated API tests
         "overwrite": True,
     }
 
